@@ -11,8 +11,10 @@ const createUser = async (req, res, next) => {
 };
 
 const getUsers = async (req, res, next) => {
+
+  const users = await User.find();
+  
   try {
-    const users = await User.find();
     res.json(users);
   } catch (err) {
     next(err);

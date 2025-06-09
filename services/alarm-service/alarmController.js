@@ -1,14 +1,17 @@
 const Alarm = require('./alarmModel.js');
 const NotFoundError = require('../Errors/notFoundError.js');
+const axios = require('axios');
+
 
 const createAlarm = async (req, res, next) => {
   try {
-    const Alarm = await Alarm.create(req.body);
-    res.status(201).json(Alarm);
+    const newAlarm = await Alarm.create(req.body);
+    res.status(201).json(newAlarm);
   } catch (err) {
     next(err);
   }
 };
+
 
 const getAlarms = async (req, res, next) => {
   try {
@@ -29,18 +32,43 @@ const getAlarmById = async (req, res, next) => {
   }
 };
 
-const associateUser = async(req, res, next) => {
+const associateUser = async (req, res, next) => {
+  const { idAlarm, idUser } = req.body; // pode ajustar se vier no body
 
-  const Alarm = await Alarm.findById(req.params.idAlarm);
-
-  Alarm.autorizedUsers.append(req.idUser)
   try {
-    await Alarm.create(Alarm);
-    res.status(201).json(Alarm);
+    // 1. Verifica se o alarme existe
+    const alarm = await Alarm.findById(idAlarm);
+    if (!alarm) {
+      return res.status(404).json({ error: 'Alarme não encontrado' });
+    }
+
+    // 2. Verifica se o usuário existe no user-service
+  const userServiceURL = process.env.USER_SERVICE_URL || 'http://localhost:3003';
+  console.log(`Consultando user-service: ${userServiceURL}/users/${idUser}`);
+
+  try {
+    const userResponse = await axios.get(`${userServiceURL}/users/${idUser}`);
+    console.log('✅ Resposta do user-service:', userResponse.status, userResponse.data);
+    userExists = true;
+  } catch (err) {
+    console.error('❌ Falha na requisição axios:', err.response?.status, err.message);
+    return res.status(404).json({ error: 'Usuário não encontrado no user-service' });
+  }
+
+    // 3. Adiciona usuário ao alarme se ainda não estiver autorizado
+    if (!alarm.authorizedUsers.includes(idUser)) {
+      alarm.authorizedUsers.push(idUser);
+    }
+
+    // 4. Salva o alarme atualizado
+    await alarm.save();
+
+    res.status(200).json({ message: 'Usuário associado com sucesso', alarm });
+
   } catch (err) {
     next(err);
   }
-}
+};
 
 const deleteAlarm = async (req, res) => {
   const { id } = req.params;
@@ -60,4 +88,4 @@ const deleteAlarm = async (req, res) => {
 };
 
 
-module.exports = { createAlarm, getAlarms, getAlarmById, deleteAlarm };
+module.exports = { createAlarm, getAlarms, getAlarmById, deleteAlarm, associateUser };
