@@ -12,7 +12,6 @@ const createAlarm = async (req, res, next) => {
   }
 };
 
-
 const getAlarms = async (req, res, next) => {
   try {
     const Alarms = await Alarm.find();
@@ -70,6 +69,27 @@ const associateUser = async (req, res, next) => {
   }
 };
 
+const removePermission = async (req, res) => {
+  const { id } = req.params
+
+  try {
+    const alarmInQuestion = await Alarm.findById(id);
+    
+    if (!alarmInQuestion) {
+      return res.status(404).json({ message: 'Alarme não encontrado' });
+    }
+
+    alarmInQuestion.authorizedUsers.length = 0
+
+    await alarmInQuestion.save();
+
+    res.status(200).json({ message: 'Permissões removidas!!!', alarmInQuestion });
+    } catch (error) {
+    console.error('Erro ao atualizar Alarme:', error);
+    res.status(500).json({ message: 'Erro interno ao atualizar o Alarme' });
+  }
+};
+
 const deleteAlarm = async (req, res) => {
   const { id } = req.params;
 
@@ -87,5 +107,99 @@ const deleteAlarm = async (req, res) => {
   }
 };
 
+const activateAlarm = async (req, res) => {
+  const { alarmId, userID } = req.body 
 
-module.exports = { createAlarm, getAlarms, getAlarmById, deleteAlarm, associateUser };
+  try {
+    let alarm = await Alarm.findById(alarmId)
+
+    if (alarm.authorizedUsers.includes(userID)) { //ver se é o usuário com permissão
+      alarm.activated = true;
+      await alarm.save();
+
+      return res.status(200).json({ message: 'Alarme ativado' });
+    }
+    else {
+      return res.status(401).json({ message: 'Usuário não autorizado' });
+    }
+
+  } catch (error) {
+  console.error('Erro ao atualizar Alarme:', error);
+  res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
+  }
+};
+
+const deactivateAlarm = async (req, res) => {
+  const { alarmId, userID } = req.body 
+
+  try {
+    let alarm = await Alarm.findById(alarmId)
+
+    if (alarm.authorizedUsers.includes(userID)) { //ver se é o usuário com permissão
+      alarm.activated = false
+      await alarm.save();
+
+      return res.status(200).json({ message: 'Alarme desativado' });
+    }
+    else {
+      return res.status(401).json({ message: 'Usuário não autorizado' });
+    }
+
+  } catch (error) {
+  console.error('Erro ao atualizar Alarme:', error);
+  res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
+  }
+};
+
+const triggeredAlarm = async (req, res) => {
+  const { alarmId } = req.body //ver se é o usuário com permissão
+
+  try {
+    let alarm = await Alarm.findById(alarmId)
+
+    alarm.triggered = true; //simplesmente dispara
+    await alarm.save();
+
+    return res.status(200).json({ message: 'Alarme disparado !!! PERIGO' }); // transformar isso numa notificação e num log
+    
+  } catch (error) {
+  console.error('Erro ao atualizar Alarme:', error);
+  res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
+  }
+};
+
+const untriggeredAlarm = async (req, res) => {
+  const { alarmId, userID } = req.body //ver se é o usuário com permissão
+
+  try {
+    let alarm = await Alarm.findById(alarmId)
+
+    if (alarm.authorizedUsers.includes(userID)) {
+      alarm.triggered = false
+      alarm.activated = false
+      await alarm.save();
+
+      return res.status(200).json({ message: 'Alarme desativado' }); 
+    }
+    else {
+      return res.status(401).json({ message: 'Usuário não autorizado' });
+    }
+
+  } catch (error) {
+  console.error('Erro ao atualizar Alarme:', error);
+  res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
+  }
+};
+
+module.exports = {
+  createAlarm,
+  getAlarms,
+  getAlarmById,
+  deleteAlarm,
+  associateUser,
+  removePermission,
+  activateAlarm,
+  deactivateAlarm,
+  triggeredAlarm,
+  untriggeredAlarm
+};
