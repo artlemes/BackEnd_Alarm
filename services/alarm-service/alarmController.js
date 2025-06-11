@@ -133,7 +133,7 @@ const deactivateAlarm = async (req, res) => {
   const { alarmId, userID } = req.body 
 
   try {
-    let alarm = await Alarm.findById(alarmId)
+    const alarm = await Alarm.findById(alarmId)
 
     if (alarm.authorizedUsers.includes(userID)) { //ver se é o usuário com permissão
       alarm.activated = false
@@ -157,10 +157,16 @@ const triggeredAlarm = async (req, res) => {
   try {
     let alarm = await Alarm.findById(alarmId)
 
-    alarm.triggered = true; //simplesmente dispara
-    await alarm.save();
+    console.log('Valor de activated:', alarm.activated); // 👈 DEBUG
 
-    return res.status(200).json({ message: 'Alarme disparado !!! PERIGO' }); // transformar isso numa notificação e num log
+    if (alarm.activated){
+      alarm.triggered = true; //simplesmente dispara
+      await alarm.save();
+      return res.status(200).json({ message: 'Alarme disparado !!! PERIGO' }); // transformar isso numa notificação e num log
+    }
+    else {
+      return res.status(401).json({ message: 'Alarme desativado, não pode disparar' });
+    }
     
   } catch (error) {
   console.error('Erro ao atualizar Alarme:', error);
@@ -170,11 +176,11 @@ const triggeredAlarm = async (req, res) => {
 
 const untriggeredAlarm = async (req, res) => {
   const { alarmId, userID } = req.body //ver se é o usuário com permissão
-
+  console.log("User ID chegando na funcao: ", userID)
   try {
     let alarm = await Alarm.findById(alarmId)
 
-    if (alarm.authorizedUsers.includes(userID)) {
+    if (alarm.authorizedUsers.includes(String(userID))) {
       alarm.triggered = false
       alarm.activated = false
       await alarm.save();
@@ -182,6 +188,8 @@ const untriggeredAlarm = async (req, res) => {
       return res.status(200).json({ message: 'Alarme desativado' }); 
     }
     else {
+      console.log("User ID: ", userID)
+      console.log("Usuários autorizados: ", alarm.authorizedUsers)
       return res.status(401).json({ message: 'Usuário não autorizado' });
     }
 

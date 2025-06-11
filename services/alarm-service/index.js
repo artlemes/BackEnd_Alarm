@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3001;
 // Middlewares
 app.use(cors());
 app.use(express.json());
-app.use('/alarm', alarmRoutes);
+app.use('/alarms', alarmRoutes);
 
 // Middleware de erro
 app.use((err, req, res, next) => {
