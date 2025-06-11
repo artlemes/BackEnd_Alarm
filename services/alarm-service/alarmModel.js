@@ -14,6 +14,8 @@ const AlarmSchema = new mongoose.Schema({
   monitoredPoints: [{ type: String, required: true }], // Ex: ["Porta principal", "Sala", "Quarto"]
   activated: { type: Boolean, default: false, required: false },
   triggered: { type: Boolean, default: false, required: false },
+
+  
 }, {
   timestamps: true,  // cria createdAt e updatedAt automaticamente
 });

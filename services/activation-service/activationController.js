@@ -5,6 +5,7 @@ const ALARM_SERVICE_URL = process.env.ALARM_SERVICE_URL || 'http://localhost:300
 const activateAlarm = async (req, res) => {
   const { alarmId, userID } = req.body;
 
+  console.log(alarmId, userID)
   try {
     const response = await axios.put(`${ALARM_SERVICE_URL}/alarms/activate`, {
       alarmId,

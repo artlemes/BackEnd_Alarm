@@ -2,6 +2,8 @@ const Alarm = require('./alarmModel.js');
 const NotFoundError = require('../Errors/notFoundError.js');
 const axios = require('axios');
 
+const NOTIFY_URL = process.env.NOTIFY_URL || 'http://localhost:3007/notify';
+const LOG_URL = process.env.LOG_URL || 'http://localhost:3008/logs';
 
 const createAlarm = async (req, res, next) => {
   try {
@@ -32,59 +34,47 @@ const getAlarmById = async (req, res, next) => {
 };
 
 const associateUser = async (req, res, next) => {
-  const { idAlarm, idUser } = req.body; // pode ajustar se vier no body
+  const { idAlarm, idUser } = req.body;
 
   try {
-    // 1. Verifica se o alarme existe
     const alarm = await Alarm.findById(idAlarm);
     if (!alarm) {
       return res.status(404).json({ error: 'Alarme não encontrado' });
     }
 
-    // 2. Verifica se o usuário existe no user-service
-  const userServiceURL = process.env.USER_SERVICE_URL || 'http://localhost:3003';
-  console.log(`Consultando user-service: ${userServiceURL}/users/${idUser}`);
+    const userServiceURL = process.env.USER_SERVICE_URL || 'http://localhost:3003';
+    try {
+      const userResponse = await axios.get(`${userServiceURL}/users/${idUser}`);
+    } catch (err) {
+      return res.status(404).json({ error: 'Usuário não encontrado no user-service' });
+    }
 
-  try {
-    const userResponse = await axios.get(`${userServiceURL}/users/${idUser}`);
-    console.log('✅ Resposta do user-service:', userResponse.status, userResponse.data);
-    userExists = true;
-  } catch (err) {
-    console.error('❌ Falha na requisição axios:', err.response?.status, err.message);
-    return res.status(404).json({ error: 'Usuário não encontrado no user-service' });
-  }
-
-    // 3. Adiciona usuário ao alarme se ainda não estiver autorizado
     if (!alarm.authorizedUsers.includes(idUser)) {
       alarm.authorizedUsers.push(idUser);
     }
 
-    // 4. Salva o alarme atualizado
     await alarm.save();
 
     res.status(200).json({ message: 'Usuário associado com sucesso', alarm });
-
   } catch (err) {
     next(err);
   }
 };
 
 const removePermission = async (req, res) => {
-  const { id } = req.params
+  const { id } = req.params;
 
   try {
     const alarmInQuestion = await Alarm.findById(id);
-    
     if (!alarmInQuestion) {
       return res.status(404).json({ message: 'Alarme não encontrado' });
     }
 
-    alarmInQuestion.authorizedUsers.length = 0
-
+    alarmInQuestion.authorizedUsers.length = 0;
     await alarmInQuestion.save();
 
     res.status(200).json({ message: 'Permissões removidas!!!', alarmInQuestion });
-    } catch (error) {
+  } catch (error) {
     console.error('Erro ao atualizar Alarme:', error);
     res.status(500).json({ message: 'Erro interno ao atualizar o Alarme' });
   }
@@ -108,94 +98,132 @@ const deleteAlarm = async (req, res) => {
 };
 
 const activateAlarm = async (req, res) => {
-  const { alarmId, userID } = req.body 
+  const { alarmId, userID } = req.body;
 
   try {
-    let alarm = await Alarm.findById(alarmId)
+    let alarm = await Alarm.findById(alarmId);
 
-    if (alarm.authorizedUsers.includes(userID)) { //ver se é o usuário com permissão
+    if (alarm.authorizedUsers.includes(userID)) {
       alarm.activated = true;
       await alarm.save();
 
+      await axios.post(NOTIFY_URL, {
+        userID,
+        alarmId,
+        eventType:'ativado'
+      });
+
+      await axios.post(LOG_URL, {
+        alarmId,
+        userID,
+        eventType: 'activated'
+      });
+
       return res.status(200).json({ message: 'Alarme ativado' });
-    }
-    else {
+    } else {
       return res.status(401).json({ message: 'Usuário não autorizado' });
     }
-
   } catch (error) {
-  console.error('Erro ao atualizar Alarme:', error);
-  res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
+    console.error('Erro ao atualizar Alarme:', error);
+    res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
   }
 };
 
 const deactivateAlarm = async (req, res) => {
-  const { alarmId, userID } = req.body 
+  const { alarmId, userID } = req.body;
 
   try {
-    const alarm = await Alarm.findById(alarmId)
+    const alarm = await Alarm.findById(alarmId);
 
-    if (alarm.authorizedUsers.includes(userID)) { //ver se é o usuário com permissão
-      alarm.activated = false
+    if (alarm.authorizedUsers.includes(userID)) {
+      alarm.activated = false;
       await alarm.save();
 
+      await axios.post(NOTIFY_URL, {
+        userID,
+        alarmId,
+        eventType:'desativado'
+      });
+
+      await axios.post(LOG_URL, {
+        alarmId,
+        userID,
+        eventType: 'deactivated'
+      });
+
       return res.status(200).json({ message: 'Alarme desativado' });
-    }
-    else {
+    } else {
       return res.status(401).json({ message: 'Usuário não autorizado' });
     }
-
   } catch (error) {
-  console.error('Erro ao atualizar Alarme:', error);
-  res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
+    console.error('Erro ao atualizar Alarme:', error);
+    res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
   }
 };
 
 const triggeredAlarm = async (req, res) => {
-  const { alarmId } = req.body //ver se é o usuário com permissão
+  const { alarmId } = req.body;
 
   try {
-    let alarm = await Alarm.findById(alarmId)
+    let alarm = await Alarm.findById(alarmId);
 
-    console.log('Valor de activated:', alarm.activated); // 👈 DEBUG
-
-    if (alarm.activated){
-      alarm.triggered = true; //simplesmente dispara
+    if (alarm.activated) {
+      alarm.triggered = true;
       await alarm.save();
-      return res.status(200).json({ message: 'Alarme disparado !!! PERIGO' }); // transformar isso numa notificação e num log
-    }
-    else {
+
+      for (const userID of alarm.authorizedUsers) {
+        await axios.post(NOTIFY_URL, {
+          userID,
+          alarmId,
+          eventType:'DISPARADO!!!!!'
+        });
+      }
+
+      await axios.post(LOG_URL, {
+        alarmId,
+        eventType: 'triggered'
+      });
+
+      return res.status(200).json({ message: 'Alarme disparado !!! PERIGO' });
+    } else {
       return res.status(401).json({ message: 'Alarme desativado, não pode disparar' });
     }
-    
   } catch (error) {
-  console.error('Erro ao atualizar Alarme:', error);
-  res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
+    console.error('Erro ao atualizar Alarme:', error);
+    res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
   }
 };
 
 const untriggeredAlarm = async (req, res) => {
-  const { alarmId, userID } = req.body //ver se é o usuário com permissão
-  console.log("User ID chegando na funcao: ", userID)
+  const { alarmId, userID } = req.body;
+
   try {
-    let alarm = await Alarm.findById(alarmId)
+    let alarm = await Alarm.findById(alarmId);
 
     if (alarm.authorizedUsers.includes(String(userID))) {
-      alarm.triggered = false
-      alarm.activated = false
+      alarm.triggered = false;
+      alarm.activated = false;
       await alarm.save();
 
-      return res.status(200).json({ message: 'Alarme desativado' }); 
-    }
-    else {
-      console.log("User ID: ", userID)
-      console.log("Usuários autorizados: ", alarm.authorizedUsers)
+      await axios.post(NOTIFY_URL, {
+        userID,
+        alarmId,
+        eventType:'desarmado'
+      });
+
+      await axios.post(LOG_URL, {
+        alarmId,
+        userID,
+        eventType: 'deactivated'
+      });
+
+      return res.status(200).json({ message: 'Alarme desativado' });
+    } else {
       return res.status(401).json({ message: 'Usuário não autorizado' });
     }
-
   } catch (error) {
-  console.error('Erro ao atualizar Alarme:', error);
-  res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
+    console.error('Erro ao atualizar Alarme:', error);
+    res.status(500).json({ message: 'Erro interno ao atualizar Alarme' });
   }
 };
 
